@@ -4,8 +4,8 @@
 # Telegram session files
 *.session
 
-# Messages data
-telegram_messages.json
+# Messages data directory
+messages/
 
 # Python cache
 __pycache__/
