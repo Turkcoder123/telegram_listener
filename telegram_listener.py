@@ -22,8 +22,6 @@ from telethon.errors import (
     SessionPasswordNeededError,
     FloodWaitError,
     RPCError,
-    ConnectionError,
-    TimeoutError,
 )
 from telethon.network import ConnectionTcpFull
 
@@ -267,7 +265,7 @@ async def main():
             logger.info("\n🛑 Stopping listener.")
             break
 
-        except (ConnectionError, TimeoutError, OSError, RPCError) as e:
+        except (OSError, RPCError) as e:
             logger.error(f"❌ Connection error: {type(e).__name__}: {e}")
 
         except FloodWaitError as e:
