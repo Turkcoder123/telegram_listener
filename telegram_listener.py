@@ -124,6 +124,7 @@ async def run_listener(api_id: int, api_hash: str, phone_number: str):
         try:
             chat = await event.get_chat()
             sender = await event.get_sender()
+            msg = event.message
 
             chat_title = getattr(chat, "title", None) or getattr(chat, "username", None) or str(chat.id)
             sender_name = (
@@ -146,16 +147,81 @@ async def run_listener(api_id: int, api_hash: str, phone_number: str):
                 "message": message_text,
             }
 
-            # Print to console
+            # --- Reply (cevap) bilgisi ---
+            reply_to_msg_id = getattr(msg, "reply_to_msg_id", None)
+            if reply_to_msg_id is not None:
+                try:
+                    replied = await msg.get_reply_message()
+                    if replied:
+                        replied_sender = await replied.get_sender()
+                        replied_sender_name = (
+                            getattr(replied_sender, "first_name", "")
+                            + (
+                                " " + getattr(replied_sender, "last_name", "")
+                                if getattr(replied_sender, "last_name", None)
+                                else ""
+                            )
+                        ).strip() or getattr(replied_sender, "username", None) or str(replied_sender.id)
+
+                        message_data["reply_to"] = {
+                            "message_id": replied.id,
+                            "sender_id": replied_sender.id,
+                            "sender_name": replied_sender_name,
+                            "message": replied.text or "[Non-text message]",
+                        }
+                except Exception as reply_err:
+                    logger.warning(f"Could not fetch replied message: {reply_err}")
+
+            # --- Forward (yönlendirme) bilgisi ---
+            fwd_from = getattr(msg, "fwd_from", None)
+            if fwd_from is not None:
+                forward_info = {}
+
+                # Forward kaynağının ismi
+                if getattr(fwd_from, "from_name", None):
+                    forward_info["from_name"] = fwd_from.from_name
+
+                # Forward kaynağının ID'si (kanal/kullanıcı)
+                if getattr(fwd_from, "from_id", None):
+                    forward_info["from_id"] = str(fwd_from.from_id)
+
+                # Orijinal mesajın tarihi
+                if getattr(fwd_from, "date", None):
+                    forward_info["original_date"] = fwd_from.date.isoformat()
+
+                # Post (kanal) bilgisi
+                if getattr(fwd_from, "channel_post", None):
+                    forward_info["channel_post"] = fwd_from.channel_post
+
+                if forward_info:
+                    message_data["forwarded_from"] = forward_info
+
+            # --- Console çıktısı ---
             today_str = date.today().isoformat()
-            print(
-                f"\n[{message_data['timestamp']}]"
-                f"\n   💬 Chat:    {chat_title}"
-                f"\n   👤 From:    {sender_name}"
-                f"\n   📝 Message: {message_text}"
-                f"\n   📁 File:    messages_{today_str}.json"
-                f"\n   {'─' * 40}"
-            )
+            console_lines = [
+                f"\n[{message_data['timestamp']}]",
+                f"   💬 Chat:    {chat_title}",
+                f"   👤 From:    {sender_name}",
+            ]
+
+            # Reply varsa göster
+            if "reply_to" in message_data:
+                console_lines.append(
+                    f"   🔄 Reply to: {message_data['reply_to']['sender_name']}: "
+                    f"{message_data['reply_to']['message'][:80]}"
+                )
+
+            # Forward varsa göster
+            if "forwarded_from" in message_data:
+                fwd = message_data["forwarded_from"]
+                fwd_str = fwd.get("from_name", fwd.get("from_id", "unknown"))
+                console_lines.append(f"   🔀 Forwarded from: {fwd_str}")
+
+            console_lines.append(f"   📝 Message: {message_text}")
+            console_lines.append(f"   📁 File:    messages_{today_str}.json")
+            console_lines.append(f"   {'─' * 40}")
+
+            print("\n".join(console_lines))
 
             # Save to daily file
             save_message(message_data)
@@ -169,6 +235,7 @@ async def run_listener(api_id: int, api_hash: str, phone_number: str):
         try:
             chat = await event.get_chat()
             sender = await event.get_sender()
+            msg = event.message
 
             chat_title = getattr(chat, "title", None) or getattr(chat, "username", None) or str(chat.id)
             sender_name = (
@@ -192,15 +259,75 @@ async def run_listener(api_id: int, api_hash: str, phone_number: str):
                 "edited": True,
             }
 
+            # --- Reply (cevap) bilgisi ---
+            reply_to_msg_id = getattr(msg, "reply_to_msg_id", None)
+            if reply_to_msg_id is not None:
+                try:
+                    replied = await msg.get_reply_message()
+                    if replied:
+                        replied_sender = await replied.get_sender()
+                        replied_sender_name = (
+                            getattr(replied_sender, "first_name", "")
+                            + (
+                                " " + getattr(replied_sender, "last_name", "")
+                                if getattr(replied_sender, "last_name", None)
+                                else ""
+                            )
+                        ).strip() or getattr(replied_sender, "username", None) or str(replied_sender.id)
+
+                        message_data["reply_to"] = {
+                            "message_id": replied.id,
+                            "sender_id": replied_sender.id,
+                            "sender_name": replied_sender_name,
+                            "message": replied.text or "[Non-text message]",
+                        }
+                except Exception as reply_err:
+                    logger.warning(f"Could not fetch replied message: {reply_err}")
+
+            # --- Forward (yönlendirme) bilgisi ---
+            fwd_from = getattr(msg, "fwd_from", None)
+            if fwd_from is not None:
+                forward_info = {}
+
+                if getattr(fwd_from, "from_name", None):
+                    forward_info["from_name"] = fwd_from.from_name
+
+                if getattr(fwd_from, "from_id", None):
+                    forward_info["from_id"] = str(fwd_from.from_id)
+
+                if getattr(fwd_from, "date", None):
+                    forward_info["original_date"] = fwd_from.date.isoformat()
+
+                if getattr(fwd_from, "channel_post", None):
+                    forward_info["channel_post"] = fwd_from.channel_post
+
+                if forward_info:
+                    message_data["forwarded_from"] = forward_info
+
+            # --- Console çıktısı ---
             today_str = date.today().isoformat()
-            print(
-                f"\n✏️ [EDITED] [{message_data['timestamp']}]"
-                f"\n   💬 Chat:    {chat_title}"
-                f"\n   👤 From:    {sender_name}"
-                f"\n   📝 Message: {message_text}"
-                f"\n   📁 File:    messages_{today_str}.json"
-                f"\n   {'─' * 40}"
-            )
+            console_lines = [
+                f"\n✏️ [EDITED] [{message_data['timestamp']}]",
+                f"   💬 Chat:    {chat_title}",
+                f"   👤 From:    {sender_name}",
+            ]
+
+            if "reply_to" in message_data:
+                console_lines.append(
+                    f"   🔄 Reply to: {message_data['reply_to']['sender_name']}: "
+                    f"{message_data['reply_to']['message'][:80]}"
+                )
+
+            if "forwarded_from" in message_data:
+                fwd = message_data["forwarded_from"]
+                fwd_str = fwd.get("from_name", fwd.get("from_id", "unknown"))
+                console_lines.append(f"   🔀 Forwarded from: {fwd_str}")
+
+            console_lines.append(f"   📝 Message: {message_text}")
+            console_lines.append(f"   📁 File:    messages_{today_str}.json")
+            console_lines.append(f"   {'─' * 40}")
+
+            print("\n".join(console_lines))
 
             save_message(message_data)
 
